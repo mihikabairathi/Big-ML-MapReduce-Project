@@ -1,0 +1,6 @@
+# Algorithm dependency; also installed on EC2.
+tqdm==4.67.1
+# Optional backend and TA preparation.
+pyarrow==21.0.0
+polars==1.44.1
+polars-cloud==0.11.0
