@@ -14,4 +14,4 @@ If setting things up for the first time, follow these steps:
 - Create S3 bucket: Create bucket with default settings `bigmlproject` in AWS
 - Download data once: Run `python3.13 project.py fetch` and `python3.13 project.py publish --input data/prepared --s3-uri s3://bigmlproject/wordcount-v1/ --set-default`
 - Delete the data: Run `rm -rf -- data/cache data/prepared` to free up space
-- Baseline: Run `python3.13 project.py run --backend baseline --workers 4 --repetitions 1`
+- Baseline: Run `python project.py check` and `python3.13 project.py run --backend baseline --workers 4 --repetitions 1` and `python project.py report`
