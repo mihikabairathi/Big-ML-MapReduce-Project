@@ -20,7 +20,8 @@ from typing import Any, Callable, Iterable
 
 KeyFn = Callable[[str], Any]
 
-DEFAULT_BATCH_SIZE = 1024
+# CHANGE: kept multiplying by 2 until it felt too big
+DEFAULT_BATCH_SIZE = 32768
 # a merge costs only O(log fanin) per record, so a wide fan-in is nearly free
 # and saves whole read/write passes over the data; the cap is open file
 # descriptors, one per run in the final merge.
@@ -97,6 +98,15 @@ def merge_sorted_files(input_paths, output_path, key: KeyFn = line_prefix_key):
                          key=_BY_KEY)
     with open(output_path, 'w') as fp:
         fp.writelines(map(_LINE, merged))
+
+# CHANGE: new function that doesn't save the merged file, just yields the lines
+def yield_sorted_files(input_paths, key: KeyFn = line_prefix_key):
+    """Yield lines whose lines are already sorted by key directly
+    """
+    merged = heapq.merge(*[_keyed_lines_from(p, key) for p in input_paths],
+                            key=_BY_KEY)
+    for _, line in merged:
+        yield line
 
 
 def merge_sort_file(input_path,
