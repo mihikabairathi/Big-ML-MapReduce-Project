@@ -20,7 +20,8 @@ from typing import Any, Callable, Iterable
 
 KeyFn = Callable[[str], Any]
 
-DEFAULT_BATCH_SIZE = 1024
+# CHANGE: kept multiplying by 2 until it felt too big
+DEFAULT_BATCH_SIZE = 32768
 # a merge costs only O(log fanin) per record, so a wide fan-in is nearly free
 # and saves whole read/write passes over the data; the cap is open file
 # descriptors, one per run in the final merge.
@@ -98,13 +99,40 @@ def merge_sorted_files(input_paths, output_path, key: KeyFn = line_prefix_key):
     with open(output_path, 'w') as fp:
         fp.writelines(map(_LINE, merged))
 
+# CHANGE: new function that doesn't save the merged file, just yields the lines
+def yield_sorted_files(input_paths, key: KeyFn = line_prefix_key):
+    """Yield lines whose lines are already sorted by key directly
+    """
+    merged = heapq.merge(*[_keyed_lines_from(p, key) for p in input_paths],
+                            key=_BY_KEY)
+    for _, line in merged:
+        yield line
 
-def merge_sort_file(input_path,
-                    output_path,
-                    key: KeyFn = line_prefix_key,
-                    batch_size: int = DEFAULT_BATCH_SIZE,
-                    fanin: int = DEFAULT_FANIN,
-                    verbose: bool = False):
+# CHANGE: add together count records that have the same key after sorting (performs a count-specific reduce operation locally, before the actual distributed reduce stage)
+def _combined_count_lines(records: Iterable):
+    """Collapse adjacent ``key<TAB>integer`` records.
+
+    ``records`` must already be sorted by key.  Keeping this count-specific
+    operation separate from the ordinary merge preserves merge_sort_file's
+    stable, line-oriented contract.
+    """
+    for encoded_key, group in itertools.groupby(records, key=_BY_KEY):
+        total = 0
+        for _, line in group:
+            _, separator, value = line.rstrip('\n').partition('\t')
+            if not separator:
+                raise ValueError(f'count record has no tab: {line!r}')
+            total += int(value)
+        yield encoded_key + '\t' + str(total) + '\n'
+
+# CHANGE: share the sorting code while choosing whether duplicate counts are combined
+def _merge_sort_file(input_path,
+                     output_path,
+                     key: KeyFn,
+                     batch_size: int,
+                     fanin: int,
+                     verbose: bool,
+                     combine_counts: bool):
     """Sort the lines of input_path into output_path by key(line).
 
     Only batch_size lines are held in memory at once: the input is spilled to
@@ -148,8 +176,37 @@ def merge_sort_file(input_path,
         say(f'merging {len(runs)} files....')
         final_sort = heapq.merge(*streams(runs), key=_BY_KEY)
 
-        # write to the output file
+        # CHANGE: combine duplicates during the final merge to avoid another file pass
         with open(output_path, 'w') as fp:
-            fp.writelines(map(_LINE, final_sort))
+            if combine_counts:
+                fp.writelines(_combined_count_lines(final_sort))
+            else:
+                fp.writelines(map(_LINE, final_sort))
     finally:
         runs.close()
+
+# CHANGE: keep the normal sorter and add a separate sorter just for count records
+def merge_sort_file(input_path,
+                    output_path,
+                    key: KeyFn = line_prefix_key,
+                    batch_size: int = DEFAULT_BATCH_SIZE,
+                    fanin: int = DEFAULT_FANIN,
+                    verbose: bool = False):
+    """Sort lines by key while preserving every input record and tie order."""
+    _merge_sort_file(input_path, output_path, key, batch_size, fanin, verbose,
+                     combine_counts=False)
+
+def merge_sort_and_combine_counts(input_path,
+                                  output_path,
+                                  key: KeyFn = line_prefix_key,
+                                  batch_size: int = DEFAULT_BATCH_SIZE,
+                                  fanin: int = DEFAULT_FANIN,
+                                  verbose: bool = False):
+    """Sort count records and sum records with equal keys during final merge.
+
+    Input and output records use ``key<TAB>integer`` format.  At most one
+    record per key is written, including when the sort requires multiple disk
+    runs.  Memory use otherwise has the same bounds as merge_sort_file.
+    """
+    _merge_sort_file(input_path, output_path, key, batch_size, fanin, verbose,
+                     combine_counts=True)
