@@ -4,7 +4,7 @@
 - Original MapReduce Project:
 https://github.com/10605/mapreduce-miniproject-s26
 - Drive: https://drive.google.com/drive/u/2/folders/1HyjV_5ZbLzVtjlemQS31Of1P2weRxq67
-- F26 Open-Ended Miniproject Guidelines: https://docs.google.com/document/d/1GCtal_u2QhtjLLqlS0Bt3q8u8nwLS1CeqT0hKRoKfQs/edit?usp=sharing
+- F26 Structured Mini-Project Guidelines: https://docs.google.com/document/d/1sp8xn60LUgfih1gBJtqHKCHtwLfjy4Zums-0uK68A_0/edit?tab=t.0
 
 ## Set-up Instructions
 If setting things up for the first time, follow these steps:
