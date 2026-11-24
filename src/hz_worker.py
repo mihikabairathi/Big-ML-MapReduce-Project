@@ -79,13 +79,24 @@ class SimpleWorker(CloudBase):
         """
         assert False, 'unimplemented'
 
+    # CHANGE: let a mapper process the full input stream instead of only one line at a time (the mapper is given an iterator over the entire input file)
+    # this function will be overidden by the function in WordCount with the more optimized implementation
+    def map_inputs(self, lines):
+        """Map an input stream, allowing subclasses to combine across lines.
+
+        The default retains the usual one-line-at-a-time mapper semantics.
+        """
+        for line in lines:
+            yield from self.map(line)
+
 
     def do_map(self, src, dst):
         """Invoked from command line for map-only jobs.
         """
         with open(dst, 'w') as fp:
-            for line in open(src):
-                for x in self.map(line):
+            # CHANGE: use the stream mapper so jobs can combine results across lines
+            with open(src) as input_fp:
+                for x in self.map_inputs(input_fp):
                     fp.write(str(x) + '\n')
 
     def _shard_bufname(self, src, worker_idx):
@@ -120,8 +131,9 @@ class SimpleWorker(CloudBase):
         ]
         # run the map and distribute the data to the processes,
         # choosing the destination based on the key
-        for line in open(src):
-            for key, val in self.map(line):
+        # CHANGE: send the mapper's combined output instead of mapping each line separately
+        with open(src) as input_fp:
+            for key, val in self.map_inputs(input_fp):
                 # convert the pair to a sortable line
                 kv_line = ru.kv_to_line(key, val)
                 # figure out where to send this line
@@ -222,9 +234,9 @@ class Worker(SimpleWorker):
             coworker_fp = [
                 open(self._shard_bufname_by_recipient(src, i), 'w')
                 for i in range(len(coworkers))]
-            for line in open(src):
+            with open(src) as input_fp:
                 # run the mapper
-                for key, val in self.map(line):
+                for key, val in self.map_inputs(input_fp): # CHANGE: enable map_inputs here as well
                     # convert the pair to a sortable line
                     kv_line = ru.kv_to_line(key, val)
                     # figure out where to save this line and write it
