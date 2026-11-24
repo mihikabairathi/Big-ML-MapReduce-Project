@@ -265,14 +265,11 @@ class Worker(SimpleWorker):
         incoming_shards = [
             self._shard_bufname(src, i) for i in range(len(indexed_coworkers))
         ]
-        stem = os.path.basename(src)
-        merge_dst =  f'mergeout-{stem}.tsv'
-        ms.merge_sorted_files(incoming_shards, merge_dst)
 
         # Third step - run the reducer and save output in 'dst'
-
+        # CHANGE: use the new yield_sorted_files to avoid writing the merged file to disk, just yield the lines directly
         def pair_generator():
-            for line in open(merge_dst):
+            for line in ms.yield_sorted_files(incoming_shards):
                 yield ru.kv_from_line(line)
         with open(dst, 'w') as fp:
             for key, values in ru.ReduceReady(pair_generator()):

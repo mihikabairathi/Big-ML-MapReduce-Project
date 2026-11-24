@@ -98,6 +98,15 @@ def merge_sorted_files(input_paths, output_path, key: KeyFn = line_prefix_key):
     with open(output_path, 'w') as fp:
         fp.writelines(map(_LINE, merged))
 
+# CHANGE: new function that doesn't save the merged file, just yields the lines
+def yield_sorted_files(input_paths, key: KeyFn = line_prefix_key):
+    """Yield lines whose lines are already sorted by key directly
+    """
+    merged = heapq.merge(*[_keyed_lines_from(p, key) for p in input_paths],
+                            key=_BY_KEY)
+    for _, line in merged:
+        yield line
+
 
 def merge_sort_file(input_path,
                     output_path,
