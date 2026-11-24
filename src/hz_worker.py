@@ -255,6 +255,10 @@ class Worker(SimpleWorker):
         indexed_coworkers = list(enumerate(self.workers))
         random.shuffle(indexed_coworkers)
         for i, worker in indexed_coworkers:
+            # CHANGE: skip if its the same worker, no need to scp
+            if i == this_index:
+                continue
+
             check_call(
                 f'scp {self.scp_args()}'
                 + f' {self.cloud_username}@{worker}:{my_shard}'
@@ -262,15 +266,15 @@ class Worker(SimpleWorker):
                 shell=True)
             
         # Second step - merge-sort the collected files
+        # CHANGE: use the existing file if on the same worker, the name is diff (for vs from) so use my_shard directly, gains were low
         incoming_shards = [
-            self._shard_bufname(src, i) for i in range(len(indexed_coworkers))
+            my_shard if i == this_index else self._shard_bufname(src, i) for i in range(len(indexed_coworkers))
         ]
         stem = os.path.basename(src)
         merge_dst =  f'mergeout-{stem}.tsv'
         ms.merge_sorted_files(incoming_shards, merge_dst)
 
         # Third step - run the reducer and save output in 'dst'
-
         def pair_generator():
             for line in open(merge_dst):
                 yield ru.kv_from_line(line)
