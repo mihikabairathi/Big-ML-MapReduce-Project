@@ -11,13 +11,15 @@ def kv_to_line(key, value) -> str:
     Specifically, running sort -k1 with LC_ALL=C option on these lines
     will group common keys together.
     """
-    return json.dumps(key) + '\t' + json.dumps(value) + '\n'
+    # CHANGE: I dont understand why we are doing json dumps if w+ is the regex mapping so no special chars
+    return key + '\t' + str(value) + '\n'
 
 def kv_from_line(line: str) -> tuple:
     """Convert a sortable line back a key-value pair.
     """
+    # CHANGE: No more json loads
     str_key, str_value = line.rstrip().split('\t')
-    return json.loads(str_key), json.loads(str_value)
+    return str_key, int(str_value)
     
 def kv_keyhash(key) -> int:
     """A hash code for the key.

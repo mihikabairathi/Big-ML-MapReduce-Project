@@ -20,7 +20,8 @@ from typing import Any, Callable, Iterable
 
 KeyFn = Callable[[str], Any]
 
-DEFAULT_BATCH_SIZE = 1024
+# CHANGE: kept multiplying by 2 until it felt too big
+DEFAULT_BATCH_SIZE = 32768
 # a merge costs only O(log fanin) per record, so a wide fan-in is nearly free
 # and saves whole read/write passes over the data; the cap is open file
 # descriptors, one per run in the final merge.
